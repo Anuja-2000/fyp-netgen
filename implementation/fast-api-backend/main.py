@@ -8,7 +8,6 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 app = FastAPI()
 
 
-model = joblib.load('model.pkl')
 class Item(BaseModel):
     name: str
     price: float
@@ -46,7 +45,7 @@ async def predict(input_data: Request):
     recommended_dest = recommended["recommended_destinations"]
     top_category = recommended["top_category"]
     return {
-        "predicted_category": predicted_category[0],
+        "predicted_category": predicted_category,
         "predicted_category_svm": predicted_category_svm,
         "Hybrid_model_category": top_category,
         "recommended_destinations": recommended_dest
@@ -78,32 +77,71 @@ def top_category_accuracy():
 
 def predict_with_RF(input_data):
     # Load the saved model
-    model = joblib.load('model.pkl')
-    # Load the saved label encoders
-    loaded_label_encoders = joblib.load('label_encoder.pkl')
+    model = joblib.load('model.joblib')
+    manual_encoding = {
+    "Travel Group": {
+        'Solo traveler': 0,
+        'Traveling with friends': 3,
+        'Traveling with partner': 1,
+        'Traveling with young kids (under 12)': 5,
+        'Traveling with teenagers (12-18)': 4,
+        'Traveling with family (multi-generational)': 2
+    },
+    "Budget": {
+        "Budget/Backpacking": 0,
+        "Mid-range": 2,
+        "Luxury": 1
+    },
+    "Accommodation": {
+        "Hostels & guesthouses": 3,
+        "Budget hotels & Airbnb": 2,
+        "3 - 4 star hotels": 0,
+        "5 - star hotels & luxury resorts": 1
+    },
+    "Activity Interest": {
+        "Food tours & local cuisine experiences": 0,
+        "Hiking & trekking": 1,
+        "Historical & cultural sightseeing": 2,
+        "Relaxation & spa retreats": 3,
+        "Shopping & city exploration": 4,
+        "Spiritual & religious visits": 5,
+        "Surfing & water sports": 6,
+        "Wildlife safaris": 7
+    },
+    "Physical Activity Level": {
+        'Very active': 2,
+        'Moderately active': 1,
+        'Less active': 0
+    },
+    "Experience Level": {
+        "First-time traveler": 0,
+        "Have traveled occasionally": 2,
+        "Frequent traveler": 1
+    }
+    }
     
-    # Apply the loaded label encoders to the input data
-    for column, encoder in loaded_label_encoders.items():
-        if column in input_data.columns:
-            input_data[column] = encoder.fit_transform(input_data[column])
-        else:
-            #print(f"Warning: Column '{column}' not found in input data. Skipping encoding for this column.")
-            continue
-    
+    for column in input_data.columns:
+        #if column in manual_encoding:
+            input_data[column] = input_data[column].map(manual_encoding[column])
     # Generate prediction using the trained Random Forest model
     predicted_category_encoded = model.predict(input_data)
     
     # Decode the predicted category back to original words
-    predicted_category = loaded_label_encoders['Preferred Destination Category'].inverse_transform(predicted_category_encoded)
+    predicted_category =  predicted_category = (lambda x: [
+        "Adventure & Unique Experiences",
+        "Beaches & Coastal Areas",
+        "Historical & Cultural Sites",
+        "Nature & Wildlife",
+    ][x[0]])(predicted_category_encoded)
     
     return predicted_category
 
 def predict_with_SVM(input_data):
     # Load the saved model
-    model = joblib.load('model_svm.pkl')
+    model = joblib.load('model_svm.joblib')
     
    # Load the saved label encoders
-    loaded_label_encoders = joblib.load('label_encoder_svm.pkl')
+    loaded_label_encoders = joblib.load('label_encoder_svm.joblib')
     # Apply the loaded label encoders to the new data
     for column, encoder in loaded_label_encoders.items():
         if column in input_data.columns:
@@ -113,7 +151,7 @@ def predict_with_SVM(input_data):
             #print(f"Warning: Column '{column}' not found in new data. Skipping encoding for this column.")
             continue
 
-    scaler = joblib.load('scaler_svm.pkl')
+    scaler = joblib.load('scaler_svm.joblib')
     # Standardize numerical features in sample data
     sample_input_scaled = scaler.fit_transform(input_data) # Use the scaler fitted on the training data
 
