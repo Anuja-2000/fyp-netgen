@@ -136,32 +136,63 @@ def predict_with_RF(input_data):
     
     return predicted_category
 
+scaling_df = pd.DataFrame()  # Initialize as empty DataFrame
+
 def predict_with_SVM(input_data):
     # Load the saved model
-    model = joblib.load('model_svm.joblib')
-    
-   # Load the saved label encoders
-    loaded_label_encoders = joblib.load('label_encoder_svm.joblib')
-    # Apply the loaded label encoders to the new data
-    for column, encoder in loaded_label_encoders.items():
-        if column in input_data.columns:
-            # Use .transform() to encode the new data
-            input_data[column] = encoder.fit_transform(input_data[column])
-        else:
-            #print(f"Warning: Column '{column}' not found in new data. Skipping encoding for this column.")
-            continue
+    model_svm = joblib.load('model_svm.joblib')
+    global scaling_df # Declare scaling_df as a global variable
 
-    scaler = joblib.load('scaler_svm.joblib')
+    manual_encoding = {
+      "Age Group": {
+        "18-30 years": 0,
+        "31-50 years": 1,
+        "51+ years": 2
+      },
+      "Gender": {
+        "Female": 0,
+        "Male": 1
+      },
+      "Country": {
+        "Australia/New Zealand": 0,
+        "East Asia (China, Japan, Korea, etc.)": 1,
+        "Europe": 2,
+        "India": 3,
+        "Middle East": 4,
+        "Sri Lanka": 5,
+        "USA/Canada": 6
+      }
+    }
+
+    for column in input_data.columns:
+        #if column in manual_encoding:
+            input_data[column] = input_data[column].map(manual_encoding[column])
+
+    scaler = StandardScaler()
+    
+    if(scaling_df.empty):
+      scl_df = pd.read_csv(dataset_path)
+      scl_df = scl_df.dropna()
+      scl_df = scl_df[['Age Group', 'Gender', 'Country']]
+      scl_df = scl_df.sample(n= 64000, random_state=42)
+      for column in scl_df.columns:
+            scl_df[column] = scl_df[column].map(manual_encoding[column])
+      scaling_df = scl_df
+
+    scaler.fit_transform(scaling_df)
     # Standardize numerical features in sample data
-    sample_input_scaled = scaler.fit_transform(input_data) # Use the scaler fitted on the training data
-
+    sample_input_scaled = scaler.transform(input_data) # Use the scaler fitted on the training data
     # Generate prediction using the trained SVM model
-    predicted_category_encoded = model.predict(sample_input_scaled)
+    predicted_category_encoded = model_svm.predict(sample_input_scaled)
 
-    # Decode the predicted category back to original words
-    predicted_category = loaded_label_encoders['Preferred Destination Category'].inverse_transform(predicted_category_encoded)
-    
-    return predicted_category[0]
+    predicted_category =  predicted_category = (lambda x: [
+        "Adventure & Unique Experiences",
+        "Beaches & Coastal Areas",
+        "Historical & Cultural Sites",
+        "Nature & Wildlife",
+    ][x[0]])(predicted_category_encoded)
+
+    return predicted_category
 
 
 # Define mappings and constants
@@ -340,28 +371,26 @@ def get_recommended_destinations(input_data, rf_prediction, svm_prediction):
         sim = cosine_sim(user_vec, dest_vec)
         similarities.append((dest_dict['Destination'], sim))
 
-    if rf_prediction == svm_prediction:
-        recommended_category = rf_prediction
-        recommended_destinations = []
-        for dest_name, score in similarities:
-            category = dest_to_category.get(dest_name, "")
-            if category == recommended_category:
-                score += 0.01
-            recommended_destinations.append((dest_name, score))
-        similarities = recommended_destinations
-    else:
-        recommended_destinations = []
-        for dest_name, score in similarities:
+    if rf_prediction == "Beaches & Coastal Areas":
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        return {"recommended_destinations": similarities[:10], "top_category": rf_prediction}
+    if rf_prediction == "Historical & Cultural Sites":
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        return {"recommended_destinations": similarities[:10], "top_category": rf_prediction}
+    if svm_prediction == "Adventure & Unique Experiences":
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        return {"recommended_destinations": similarities[:10], "top_category": svm_prediction}
+    recommended_destinations = []
+    for dest_name, score in similarities:
             category = dest_to_category.get(dest_name, "")
             if category == rf_prediction:
-                score += 0.008
+                score += 0.2
             elif category == svm_prediction:
-                score += 0.002
+                score += 0.1
             recommended_destinations.append((dest_name, score))
-        similarities = recommended_destinations
-    # Sort and display top 5
+    similarities = recommended_destinations
+    # Sort top 10
     similarities.sort(key=lambda x: x[1], reverse=True)
-    #print("Top 10 recommended destinations:")
     # Get top 3 destinations and their categories
     top_3 = similarities[:3]
     top_3_categories = [dest_to_category.get(dest_name, "") for dest_name, _ in top_3]
