@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import joblib
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 app = FastAPI()
 
@@ -51,8 +50,9 @@ async def predict(input_data: Request):
         "recommended_destinations": recommended_dest
     }
 
-from sklearn.metrics import accuracy_score
+#from sklearn.metrics import accuracy_score
 
+"""
 @app.get("/top_category_accuracy/")
 def top_category_accuracy():
     # Load your dataset
@@ -74,10 +74,13 @@ def top_category_accuracy():
 
     acc = accuracy_score(true_labels, predicted_top_categories)
     return {"top_category_accuracy": acc}
+"""
+model = joblib.load('model.joblib')
+model_svm = joblib.load('model_svm.joblib')
+
 
 def predict_with_RF(input_data):
     # Load the saved model
-    model = joblib.load('model.joblib')
     manual_encoding = {
     "Travel Group": {
         'Solo traveler': 0,
@@ -140,7 +143,6 @@ scaling_df = pd.DataFrame()  # Initialize as empty DataFrame
 
 def predict_with_SVM(input_data):
     # Load the saved model
-    model_svm = joblib.load('model_svm.joblib')
     global scaling_df # Declare scaling_df as a global variable
 
     manual_encoding = {
@@ -168,20 +170,27 @@ def predict_with_SVM(input_data):
         #if column in manual_encoding:
             input_data[column] = input_data[column].map(manual_encoding[column])
 
-    scaler = StandardScaler()
-    
-    if(scaling_df.empty):
-      scl_df = pd.read_csv(dataset_path)
-      scl_df = scl_df.dropna()
-      scl_df = scl_df[['Age Group', 'Gender', 'Country']]
-      scl_df = scl_df.sample(n= 64000, random_state=42)
-      for column in scl_df.columns:
+    # Manual standardization (z-score normalization)
+    if scaling_df.empty:
+        scl_df = pd.read_csv(dataset_path)
+        scl_df = scl_df.dropna()
+        scl_df = scl_df[['Age Group', 'Gender', 'Country']]
+        scl_df = scl_df.sample(n=64000, random_state=42)
+        for column in scl_df.columns:
             scl_df[column] = scl_df[column].map(manual_encoding[column])
-      scaling_df = scl_df
+        scaling_df = scl_df
 
-    scaler.fit_transform(scaling_df)
-    # Standardize numerical features in sample data
-    sample_input_scaled = scaler.transform(input_data) # Use the scaler fitted on the training data
+    # Calculate mean and std for each column
+    means = {col: scaling_df[col].mean() for col in scaling_df.columns}
+    stds = {col: scaling_df[col].std(ddof=0) for col in scaling_df.columns}
+
+    # Standardize input_data manually
+    sample_input_scaled = input_data.copy()
+    for col in sample_input_scaled.columns:
+        if col in stds and stds[col] != 0 and col in means and means[col] != 0:
+                sample_input_scaled[col] = (sample_input_scaled[col] - means[col]) / stds[col]
+        else:
+            sample_input_scaled[col] = sample_input_scaled[col]  # leave unchanged if std is 0 or not found
     # Generate prediction using the trained SVM model
     predicted_category_encoded = model_svm.predict(sample_input_scaled)
 
@@ -238,11 +247,11 @@ PHYSICAL_LEVELS = ["Less active", "Moderately active", "Very active"]
 SPECIAL_NEEDS = ["Yes", "No"]
 EXPERIENCE_LEVELS = ["First-time traveler", "Have traveled occasionally", "Frequent traveler"]
 
-dataset_path = r"D:\UOM\L4S1\FYP\Datasets\dataset_80k.csv"
+dataset_path = r"https://drive.google.com/uc?id=1egDVz7cbmI5EB1pnXf_pdyUy0vhSyt2a"
 # Simulated data (replace with actual CSV loading)
 SYNTHETIC_DATA = pd.read_csv(dataset_path)
 
-DESTINATION_DATA = pd.read_csv(r"D:\UOM\L4S1\FYP\Datasets\attribute_data_destinations.csv")
+DESTINATION_DATA = pd.read_csv(r"https://drive.google.com/uc?id=1_qoFL7JwBzQ1zKL6LohTL5r0XGAIVJox")
 
 # Create destination-to-category mapping
 dest_to_category = SYNTHETIC_DATA.groupby('Sample Destination')['Preferred Destination Category'].first().to_dict()
