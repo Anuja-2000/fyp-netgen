@@ -1,0 +1,6 @@
+model,best_score,best_params
+decision_tree,0.568,"{'criterion': 'gini', 'max_depth': None, 'min_samples_split': 10}"
+random_forest,0.5631999999999999,{'n_estimators': 10}
+gaussian_nb,0.44960000000000006,{}
+multinomial_nb,0.4176,{'alpha': 0.5}
+bernoulli_nb,0.409,{'alpha': 0.5}
