@@ -4,6 +4,7 @@ import joblib
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+import uvicorn
 
 app = FastAPI()
 
@@ -17,6 +18,7 @@ class Item(BaseModel):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the API!"}
+
 
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: str = ""):
@@ -32,11 +34,44 @@ async def predict(input_data: Request):
     print("Received input data:", input_data)
 
     sample_input_data = pd.DataFrame(await input_data.json(), index=[0])
+    
+    required_columns = [
+    "Age Group", "Gender", "Country", "Travel Group", "Budget", "Accommodation",
+    "Activity Interest", "Physical Activity Level", "Experience Level",
+    "Special Needs", "Traveler Type", "Travel Season"
+    ]
+    
+    # Add default values for missing fields required by create_user_vector
+    defaults = {
+        "Age Group": "18-30 years",
+        "Gender": "Female",
+        "Country": "Sri Lanka",
+        "Budget": "Mid-range",
+        "Travel Group": "Solo traveler",
+        "Accommodation": "3 - 4 star hotels",
+        "Activity Interest": "Historical & cultural sightseeing",
+        "Physical Activity Level": "Moderately active",
+        "Experience Level": "Have traveled occasionally",
+        "Special Needs": "No",
+        "Traveler Type": "Beach & relaxation seeker",
+        "Travel Season": "Anytime"
+    }
+
+    for col, default_value in defaults.items():
+        if col not in sample_input_data.columns:
+            print(f"Column '{col}' not found in input data, adding with default value: {default_value}")
+            sample_input_data[col] = [default_value]
+    
+    sample_input_data = sample_input_data[required_columns]
+
     sample_input_data_RF = sample_input_data.drop(columns=['Age Group','Gender','Country', 'Traveler Type', 'Special Needs', 'Travel Season'], errors='ignore')
     sample_input_data_SVM = sample_input_data.drop(columns=['Travel Group', 'Budget', 'Accommodation', 'Traveler Type', 'Activity Interest', 'Physical Activity Level', 'Experience Level','Special Needs', 'Travel Season'], errors='ignore')
     print("Sample input data:", sample_input_data)
+    # Ensure all required columns are present for RF
+
     predicted_category = predict_with_RF(sample_input_data_RF)
     print("Predicted category:", predicted_category)
+
 
     predicted_category_svm = predict_with_SVM(sample_input_data_SVM)
     print("Predicted category (SVM):", predicted_category_svm)
@@ -44,11 +79,10 @@ async def predict(input_data: Request):
     recommended = get_recommended_destinations(sample_input_data, predicted_category, predicted_category_svm)
     recommended_dest = recommended["recommended_destinations"]
     top_category = recommended["top_category"]
+    # Extract only the destination names from the recommended_dest list
+    destination_names = [dest[0] for dest in recommended_dest]
     return {
-        "predicted_category": predicted_category,
-        "predicted_category_svm": predicted_category_svm,
-        "Hybrid_model_category": top_category,
-        "recommended_destinations": recommended_dest
+        "recommended_destinations": destination_names
     }
 
 from sklearn.metrics import accuracy_score
