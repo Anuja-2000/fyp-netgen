@@ -37,5 +37,42 @@ if st.button("Submit"):
                 st.write("- **Aspects:** None")
     except Exception as e:
         st.error(f"Error: {e}")
+st.title("Get Summaries for Recommended Places")
+
+# --- Input fields ---
+travel_group = st.selectbox("Travel Group", [
+    "Traveling with teenagers (12-18)",
+    "Traveling with friends",
+    "Traveling with extended family (multi-generational)",
+    "Traveling with young kids (under 12)",
+    "Traveling with a partner",
+    "Solo traveler"
+])
+
+recommended_places_input = st.text_area(
+    "Recommended Places (comma-separated)",
+    placeholder="e.g., Mirissa, Ella Rock, Sinharaja Rainforest"
+)
+
+if st.button("Get Place Summaries"):
+    recommended_places = [place.strip() for place in recommended_places_input.split(",") if place.strip()]
+    
+    payload = {
+        "user_profile": {
+            "Travel Group": travel_group
+        },
+        "recommended_places": recommended_places
+    }
+
+    try:
+        response = requests.post("http://127.0.0.1:5000/place_summary_by_usertype", json=payload)
+        result = response.json()
+        st.subheader("Summaries")
+
+        for res in result.get("results", []):
+            st.markdown(f"### {res.get('place')}")
+            st.write(res.get("natural_summary", "No summary found."))
+    except Exception as e:
+        st.error(f"Error fetching summaries: {e}")
 
         
