@@ -29,7 +29,7 @@ ASPECT_LABELS = [
 ]
 SENTIMENT_LABELS = ["very negative", "negative", "neutral", "positive", "very positive"]
 
-CSV_PATH = "dataset/Reviews_SriLankan_destinations-sentences_labeled_sentiment_by_aspect_type_safety_correct.csv"
+CSV_PATH = "dataset/Reviews_SriLankan_destinations-sentences_labeled_sentiment_by_aspect_type_safety_correct_cleaned.csv"
 SUMMARY_CSV_PATH = "dataset/summary.csv"
 
 # Load models
@@ -225,7 +225,6 @@ def predict_review():
             "Text": review,
             "review sentences": sentence,
             "safety_label": safety_label,
-            "safety_keyword": safety_pred["label"].lower(),
             **{aspect: sentiments.get(aspect, "") for aspect in ASPECT_LABELS}
         }
         rows.append(row)
@@ -234,7 +233,6 @@ def predict_review():
         sentence_results.append({
             "sentence": sentence,
             "safety_label": safety_label,
-            "safety_keyword": safety_pred["label"].lower(),
             "aspects": sentiments
         })
 
